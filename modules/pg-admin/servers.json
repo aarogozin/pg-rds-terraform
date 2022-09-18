@@ -1,0 +1,13 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "${PROJECT}-${ENV}",
+            "Group": "Servers",
+            "Host": "${HOST}",
+            "Port": 5432,
+            "MaintenanceDB": "${DB_NAME}",
+            "Username": "${DB_USERNAME}",
+            "SSLMode": "prefer"
+        }
+    }
+}
