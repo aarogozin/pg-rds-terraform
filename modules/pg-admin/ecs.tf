@@ -14,17 +14,6 @@ data "aws_ami" "latest-ecs-amazon-linux" {
   }
 }
 
-# Prepare user data for pg-admin launch configuration.
-data "template_file" "pg-admin-user-data" {
-  template = file("./modules/pg-admin/launch_configuration.sh")
-
-  vars = {
-    ECS_CLUSTER   = "${aws_ecs_cluster.pg-admin-cluster.name}"
-    SERVER_CONFIG = "${data.template_file.pg-admin-server-config.rendered}"
-  }
-
-}
-
 data "aws_ecs_task_definition" "pg-admin-task-def" {
   task_definition = var.env
   depends_on = [
@@ -60,6 +49,17 @@ resource "aws_ecs_cluster" "pg-admin-cluster" {
     Environment = "${var.env}"
     Service     = "pg-admin"
   }
+}
+
+# Prepare user data for pg-admin launch configuration.
+data "template_file" "pg-admin-user-data" {
+  template = file("./modules/pg-admin/templates/launch_configuration.sh")
+
+  vars = {
+    ECS_CLUSTER   = "${aws_ecs_cluster.pg-admin-cluster.name}"
+    SERVER_CONFIG = "${data.template_file.pg-admin-server-config.rendered}"
+  }
+
 }
 
 # Laucnh configuration for pg-admin.
@@ -137,9 +137,23 @@ resource "aws_ssm_parameter" "pg_admin_pass" {
   }
 }
 
+# Generate pg-admin config file with RDS endpoint, username, project name and database name.
+# After that we dont have to set it up manually in GUI.
+data "template_file" "pg-admin-server-config" {
+
+  template = file("./modules/pg-admin/templates/servers.json")
+  vars = {
+    PROJECT     = "${var.project}"
+    ENV         = "${var.env}"
+    HOST        = "${data.aws_db_instance.pg-rds.address}"
+    DB_NAME     = "${var.db_name}"
+    DB_USERNAME = "${var.db_username}"
+  }
+}
+
 # Generate task definition for pg-admin.
 data "template_file" "pg-admin-task-def" {
-  template = file("./modules/pg-admin/pg-admin-td.json")
+  template = file("./modules/pg-admin/templates/pg-admin-td.json")
   depends_on = [
     aws_ssm_parameter.pg_admin_pass
   ]
@@ -147,20 +161,6 @@ data "template_file" "pg-admin-task-def" {
   vars = {
     PGADMIN_DEFAULT_EMAIL = "${var.pg_admin_email}"
     PARAMETER_STORE_ARN   = "${aws_ssm_parameter.pg_admin_pass.arn}"
-  }
-}
-
-# Generate pg-admin config file with RDS endpoint, username, project name and database name.
-# After that we dont have to set it up manually in GUI.
-data "template_file" "pg-admin-server-config" {
-
-  template = file("./modules/pg-admin/servers.json")
-  vars = {
-    PROJECT     = "${var.project}"
-    ENV         = "${var.env}"
-    HOST        = "${data.aws_db_instance.pg-rds.address}"
-    DB_NAME     = "${var.db_name}"
-    DB_USERNAME = "${var.db_username}"
   }
 }
 
@@ -190,7 +190,6 @@ resource "aws_ecs_service" "pg-admin" {
   cluster         = aws_ecs_cluster.pg-admin-cluster.name
   task_definition = "${aws_ecs_task_definition.pg-admin.family}:${max("${aws_ecs_task_definition.pg-admin.revision}", "${data.aws_ecs_task_definition.pg-admin-task-def.revision}")}"
   launch_type     = "EC2"
-  desired_count   = "2"
   # DAEMON used to be sure that each node will have one task.
   scheduling_strategy = "DAEMON"
 }
