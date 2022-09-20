@@ -95,3 +95,5 @@ At the moment, access to instance is limited by security groups.
 Currently, connecting to RDS requires a password stored in the SSM parameter store.
 
 - Draw a diagram.
+
+- Set up logs, monitoring and alarms.
